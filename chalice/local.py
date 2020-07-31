@@ -27,7 +27,7 @@ from typing import (
     Union,
 )  # noqa
 
-from chalice.app import Chalice  # noqa
+from chalice.app import Chalice, ChaliceEventPayloadAuthorizer  # noqa
 from chalice.app import CORSConfig  # noqa
 from chalice.app import ChaliceAuthorizer  # noqa
 from chalice.app import CognitoUserPoolAuthorizer  # noqa
@@ -342,6 +342,27 @@ class LocalGatewayAuthorizer(object):
                                "principalId": cognito_username}
                 lambda_event = self._update_lambda_event(lambda_event,
                                                          auth_result)
+        if isinstance(authorizer, ChaliceEventPayloadAuthorizer):
+            arn = self._arn_builder.build_arn(method, raw_path)
+            auth_event = self._prepare_event_payload_authorizer_event(arn, lambda_event,
+                                                        lambda_context)
+            try:
+                auth_result = authorizer(auth_event, lambda_context)
+            except (KeyError, TypeError):
+                raise ForbiddenError(
+                    {'message': "FU"}
+                )
+            authed = self._check_can_invoke_view_function(arn, auth_result)
+            if authed:
+                lambda_event = self._update_lambda_event(lambda_event, auth_result)
+            else:
+                raise ForbiddenError(
+                    {'x-amzn-RequestId': lambda_context.aws_request_id,
+                     'x-amzn-ErrorType': 'AccessDeniedException'},
+                    (b'{"Message": '
+                     b'"User is not authorized to access this resource"}'))
+            return lambda_event, lambda_context
+
         if not isinstance(authorizer, ChaliceAuthorizer):
             # Currently the only supported local authorizer is the
             # BuiltinAuthConfig type. Anything else we will err on the side of
@@ -427,6 +448,14 @@ class LocalGatewayAuthorizer(object):
                 {'x-amzn-RequestId': lambda_context.aws_request_id,
                  'x-amzn-ErrorType': 'UnauthorizedException'},
                 b'{"message":"Unauthorized"}')
+        authorizer_event['methodArn'] = arn
+        return authorizer_event
+
+    def _prepare_event_payload_authorizer_event(self, arn, lambda_event, lambda_context):
+        # type: (str, EventType, LambdaContext) -> EventType
+        """Translate event for an authorizer input."""
+        authorizer_event = lambda_event.copy()
+        authorizer_event['type'] = 'REQUEST'
         authorizer_event['methodArn'] = arn
         return authorizer_event
 

@@ -626,6 +626,17 @@ class DecoratorAPI(object):
             }
         )
 
+    def event_payload_authorizer(self, ttl_seconds=None, execution_role=None, name=None, identity_sources=None):
+        return self._create_registration_function(
+            handler_type='event_payload_authorizer',
+            name=name,
+            registration_kwargs={
+                'ttl_seconds': ttl_seconds,
+                'execution_role': execution_role,
+                'identity_sources': identity_sources
+            }
+        )
+
     def on_s3_event(self, bucket, events=None,
                     prefix=None, suffix=None, name=None):
         return self._create_registration_function(
@@ -744,6 +755,8 @@ class DecoratorAPI(object):
             # Authorizer is special cased and doesn't quite fit the
             # EventSourceHandler pattern.
             return ChaliceAuthorizer(handler_name, user_handler)
+        if handler_type == 'event_payload_authorizer':
+            return ChaliceEventPayloadAuthorizer(handler_name, user_handler)
         return user_handler
 
     def _register_handler(self, handler_type, name,
@@ -903,6 +916,27 @@ class _HandlerRegistration(object):
         )
         wrapped_handler.config = auth_config
         self.builtin_auth_handlers.append(auth_config)
+
+    def _register_event_payload_authorizer(self, name, handler_string, wrapped_handler,
+                             kwargs, **unused):
+        actual_kwargs = kwargs.copy()
+        ttl_seconds = actual_kwargs.pop('ttl_seconds', None)
+        execution_role = actual_kwargs.pop('execution_role', None)
+        identity_sources = actual_kwargs.pop('identity_sources')
+        if actual_kwargs:
+            raise TypeError(
+                'TypeError: authorizer() got unexpected keyword '
+                'arguments: %s' % ', '.join(list(actual_kwargs)))
+        auth_config = BuiltinAuthConfig(
+            name=name,
+            handler_string=handler_string,
+            ttl_seconds=ttl_seconds,
+            execution_role=execution_role,
+            identity_sources=identity_sources
+        )
+        wrapped_handler.config = auth_config
+        self.builtin_auth_handlers.append(auth_config)
+
 
     def _register_route(self, name, user_handler, kwargs, **unused):
         actual_kwargs = kwargs['kwargs']
@@ -1177,12 +1211,13 @@ class Chalice(_HandlerRegistration, DecoratorAPI):
 
 class BuiltinAuthConfig(object):
     def __init__(self, name, handler_string, ttl_seconds=None,
-                 execution_role=None):
+                 execution_role=None, identity_sources=None):
         # We'd also support all the misc config options you can set.
         self.name = name
         self.handler_string = handler_string
         self.ttl_seconds = ttl_seconds
         self.execution_role = execution_role
+        self.identity_sources = identity_sources
 
 
 # ChaliceAuthorizer is unique in that the runtime component (the thing
@@ -1206,6 +1241,57 @@ class BuiltinAuthConfig(object):
 # I *think* we can refactor things to handle both of those issues but
 # we would need more research to know for sure.  For now, this is a
 # special cased runtime class that knows about its config.
+class ChaliceEventPayloadAuthorizer(object):
+    def __init__(self, name, func, identity_sources=None, scopes=None):
+        self.name = name
+        self.func = func
+        self.scopes = scopes or []
+        self.identity_sources = identity_sources
+        # This is filled in during the @app.authorizer()
+        # processing.
+        self.config = None
+
+    def __call__(self, event, context):
+        auth_request = self._transform_event(event)
+        result = self.func(auth_request)
+        if isinstance(result, AuthResponse):
+            return result.to_dict(auth_request)
+        return result
+
+    def _transform_event(self, event):
+        request = AuthEventPayloadRequest(
+            event['type'],
+            event['methodArn'],
+        )
+        for source_type, sources in self.config.identity_sources.items():
+            present_sources = []
+            if source_type == 'querystrings':
+                for source in sources:
+                    present_sources.append({source: event['multiValueQueryStringParameters'][source]})
+                request.querystrings = present_sources
+            if source_type == 'headers':
+                for source in sources:
+                    if source in event.get('headers'):
+                        present_sources.append({source: event['headers'][source]})
+                request.headers = present_sources
+            if present_sources == 'stage_variables':
+                for source in sources:
+                    if source in event.get('headers'):
+                        present_sources.append({source: event['stage_variables'][source]})
+                request.headers = present_sources
+            if present_sources == 'context':
+                for source in sources:
+                    if source in event.get('context'):
+                        present_sources.append({source: event['context'][source]})
+                request.headers = present_sources
+        return request
+
+    def with_scopes(self, scopes):
+        authorizer_with_scopes = copy.deepcopy(self)
+        authorizer_with_scopes.scopes = scopes
+        return authorizer_with_scopes
+
+
 class ChaliceAuthorizer(object):
     def __init__(self, name, func, scopes=None):
         self.name = name
@@ -1238,6 +1324,16 @@ class AuthRequest(object):
         self.auth_type = auth_type
         self.token = token
         self.method_arn = method_arn
+
+
+class AuthEventPayloadRequest(object):
+    def __init__(self, auth_type, method_arn, headers=None, querystrings=None, stage_variables=None, context=None):
+        self.auth_type = auth_type
+        self.method_arn = method_arn
+        self.headers = headers if headers else []
+        self.querystrings = querystrings if querystrings else []
+        self.stage_variables = stage_variables if stage_variables else []
+        self.context = context if context else []
 
 
 class AuthResponse(object):
