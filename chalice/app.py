@@ -1262,31 +1262,11 @@ class ChaliceEventPayloadAuthorizer(object):
         request = AuthEventPayloadRequest(
             event['type'],
             event['methodArn'],
+            event.get('headers', {}),
+            event.get('queryStringParameters', {}),
+            event.get('stageVariables', {}),
+            event.get('requestContext', {}),
         )
-        for source in vars(self.config.identity_sources):
-            value = getattr(self.config.identity_sources, source)
-            if not value:
-                continue
-            present_sources = []
-            if source == 'query_strings':
-                for source in value:
-                    present_sources.append({source: event['multiValueQueryStringParameters'][source]})
-                request.query_strings = present_sources
-            if source == 'headers':
-                for source in value:
-                    if source in event.get('headers'):
-                        present_sources.append({source: event['headers'][source]})
-                request.headers = present_sources
-            if present_sources == 'stage_variables':
-                for source in value:
-                    if source in event.get('headers'):
-                        present_sources.append({source: event['stage_variables'][source]})
-                request.headers = present_sources
-            if present_sources == 'context':
-                for source in value:
-                    if source in event.get('context'):
-                        present_sources.append({source: event['context'][source]})
-                request.headers = present_sources
         return request
 
     def with_scopes(self, scopes):
@@ -1330,13 +1310,13 @@ class AuthRequest(object):
 
 
 class AuthEventPayloadRequest(object):
-    def __init__(self, auth_type, method_arn, headers=None, querystrings=None, stage_variables=None, context=None):
+    def __init__(self, auth_type, method_arn, headers, query_string_parameters, stage_variables, reqest_context):
         self.auth_type = auth_type
         self.method_arn = method_arn
-        self.headers = headers if headers else []
-        self.query_strings = querystrings if querystrings else []
-        self.stage_variables = stage_variables if stage_variables else []
-        self.context = context if context else []
+        self.headers = headers
+        self.query_string_parameters = query_string_parameters
+        self.stage_variables = stage_variables
+        self.request_context = reqest_context
 
 class AuthResponse(object):
     ALL_HTTP_METHODS = ['DELETE', 'HEAD', 'OPTIONS',

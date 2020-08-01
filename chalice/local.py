@@ -346,6 +346,7 @@ class LocalGatewayAuthorizer(object):
             arn = self._arn_builder.build_arn(method, raw_path)
             auth_event = self._prepare_request_authorizer_event(arn, lambda_event,
                                                         lambda_context)
+            self._check_request_has_indentity_sources(authorizer, auth_event, lambda_context)
             try:
                 auth_result = authorizer(auth_event, lambda_context)
             except (KeyError, TypeError):
@@ -394,6 +395,24 @@ class LocalGatewayAuthorizer(object):
                 (b'{"Message": '
                  b'"User is not authorized to access this resource"}'))
         return lambda_event, lambda_context
+
+    def _check_request_has_indentity_sources(self, authorizer, event, lambda_context):
+        event_keys = {
+            'headers': 'headers',
+            'query_strings': 'queryStringParameters',
+            'stage_variables': 'stageVariables',
+            'request_context': 'requestContext'
+        }
+        sources = authorizer.config.identity_sources
+        for source in vars(sources):
+            if getattr(sources, source):
+                for key in getattr(sources, source):
+                    if key not in event[event_keys.get(source)]:
+                        raise NotAuthorizedError(
+                            {'x-amzn-RequestId': lambda_context.aws_request_id,
+                             'x-amzn-ErrorType': 'UnauthorizedException'},
+                            b'{"message":"Unauthorized"}')
+
 
     def _check_can_invoke_view_function(self, arn, auth_result):
         # type: (str, ResponseType) -> bool
@@ -457,6 +476,14 @@ class LocalGatewayAuthorizer(object):
         authorizer_event = lambda_event.copy()
         authorizer_event['type'] = 'REQUEST'
         authorizer_event['methodArn'] = arn
+        authorizer_event['resource'] = None
+        authorizer_event['path'] = None
+        authorizer_event['httpMethod'] = None
+        authorizer_event['headers'] = {}
+        authorizer_event['queryStringParameters'] = lambda_event.get('multiValueQueryStringParameters', {})
+        authorizer_event['pathParameters'] = lambda_event['pathParameters']
+        authorizer_event['stageVariables'] = lambda_event['stageVariables']
+        authorizer_event['requestContext'] = lambda_event['requestContext']
         return authorizer_event
 
     def _decode_jwt_payload(self, jwt):
