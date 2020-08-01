@@ -1301,6 +1301,14 @@ class ChaliceRequestPayloadAuthorizer(object):
         return authorizer_with_scopes
 
 
+class RequestAuthorizerIdentitySources:
+    def __init__(self, headers=None, query_strings=None, stage_variables=None, context=None):
+        self.headers = headers
+        self.query_strings = query_strings
+        self.stage_variables = stage_variables
+        self.context = context
+
+
 class AuthRequest(object):
     def __init__(self, auth_type, token, method_arn):
         self.auth_type = auth_type

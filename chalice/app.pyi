@@ -284,3 +284,9 @@ class CloudWatchEventConfig(BaseEventSourceConfig):
 class Blueprint(DecoratorAPI):
     current_request = ... # type: Request
     lambda_context = ... # type: LambdaContext
+
+class RequestAuthorizerIdentitySources(object):
+    headers= ... # type: Optional[List[str]]=None
+    query_strings=... # type: Optional[List[str]]=None
+    stage_variables=... # type: Optional[List[str]]=None
+    context=... # type: Optional[List[str]]=None
