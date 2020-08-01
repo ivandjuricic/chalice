@@ -756,7 +756,7 @@ class DecoratorAPI(object):
             # EventSourceHandler pattern.
             return ChaliceAuthorizer(handler_name, user_handler)
         if handler_type == 'request_authorizer':
-            return ChaliceEventPayloadAuthorizer(handler_name, user_handler)
+            return ChaliceRequestPayloadAuthorizer(handler_name, user_handler)
         return user_handler
 
     def _register_handler(self, handler_type, name,
@@ -1241,12 +1241,38 @@ class BuiltinAuthConfig(object):
 # I *think* we can refactor things to handle both of those issues but
 # we would need more research to know for sure.  For now, this is a
 # special cased runtime class that knows about its config.
-class ChaliceEventPayloadAuthorizer(object):
-    def __init__(self, name, func, identity_sources=None, scopes=None):
+class ChaliceAuthorizer(object):
+    def __init__(self, name, func, scopes=None):
         self.name = name
         self.func = func
         self.scopes = scopes or []
-        self.identity_sources = identity_sources
+        # This is filled in during the @app.authorizer()
+        # processing.
+        self.config = None
+
+    def __call__(self, event, context):
+        auth_request = self._transform_event(event)
+        result = self.func(auth_request)
+        if isinstance(result, AuthResponse):
+            return result.to_dict(auth_request)
+        return result
+
+    def _transform_event(self, event):
+        return AuthRequest(event['type'],
+                           event['authorizationToken'],
+                           event['methodArn'])
+
+    def with_scopes(self, scopes):
+        authorizer_with_scopes = copy.deepcopy(self)
+        authorizer_with_scopes.scopes = scopes
+        return authorizer_with_scopes
+
+
+class ChaliceRequestPayloadAuthorizer(object):
+    def __init__(self, name, func, scopes=None):
+        self.name = name
+        self.func = func
+        self.scopes = scopes or []
         # This is filled in during the @app.authorizer()
         # processing.
         self.config = None
@@ -1268,33 +1294,6 @@ class ChaliceEventPayloadAuthorizer(object):
             event.get('requestContext', {}),
         )
         return request
-
-    def with_scopes(self, scopes):
-        authorizer_with_scopes = copy.deepcopy(self)
-        authorizer_with_scopes.scopes = scopes
-        return authorizer_with_scopes
-
-
-class ChaliceAuthorizer(object):
-    def __init__(self, name, func, scopes=None):
-        self.name = name
-        self.func = func
-        self.scopes = scopes or []
-        # This is filled in during the @app.authorizer()
-        # processing.
-        self.config = None
-
-    def __call__(self, event, context):
-        auth_request = self._transform_event(event)
-        result = self.func(auth_request)
-        if isinstance(result, AuthResponse):
-            return result.to_dict(auth_request)
-        return result
-
-    def _transform_event(self, event):
-        return AuthRequest(event['type'],
-                           event['authorizationToken'],
-                           event['methodArn'])
 
     def with_scopes(self, scopes):
         authorizer_with_scopes = copy.deepcopy(self)

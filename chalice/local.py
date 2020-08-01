@@ -27,9 +27,10 @@ from typing import (
     Union,
 )  # noqa
 
-from chalice.app import Chalice, ChaliceEventPayloadAuthorizer  # noqa
+from chalice.app import Chalice  # noqa
 from chalice.app import CORSConfig  # noqa
 from chalice.app import ChaliceAuthorizer  # noqa
+from chalice.app import ChaliceRequestPayloadAuthorizer
 from chalice.app import CognitoUserPoolAuthorizer  # noqa
 from chalice.app import RouteEntry  # noqa
 from chalice.app import Request  # noqa
@@ -342,7 +343,7 @@ class LocalGatewayAuthorizer(object):
                                "principalId": cognito_username}
                 lambda_event = self._update_lambda_event(lambda_event,
                                                          auth_result)
-        if isinstance(authorizer, ChaliceEventPayloadAuthorizer):
+        if isinstance(authorizer, ChaliceRequestPayloadAuthorizer):
             arn = self._arn_builder.build_arn(method, raw_path)
             auth_event = self._prepare_request_authorizer_event(arn, lambda_event,
                                                         lambda_context)
