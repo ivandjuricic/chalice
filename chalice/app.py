@@ -626,9 +626,9 @@ class DecoratorAPI(object):
             }
         )
 
-    def event_payload_authorizer(self, ttl_seconds=None, execution_role=None, name=None, identity_sources=None):
+    def request_authorizer(self, ttl_seconds=None, execution_role=None, name=None, identity_sources=None):
         return self._create_registration_function(
-            handler_type='event_payload_authorizer',
+            handler_type='request_authorizer',
             name=name,
             registration_kwargs={
                 'ttl_seconds': ttl_seconds,
@@ -755,7 +755,7 @@ class DecoratorAPI(object):
             # Authorizer is special cased and doesn't quite fit the
             # EventSourceHandler pattern.
             return ChaliceAuthorizer(handler_name, user_handler)
-        if handler_type == 'event_payload_authorizer':
+        if handler_type == 'request_authorizer':
             return ChaliceEventPayloadAuthorizer(handler_name, user_handler)
         return user_handler
 
@@ -917,7 +917,7 @@ class _HandlerRegistration(object):
         wrapped_handler.config = auth_config
         self.builtin_auth_handlers.append(auth_config)
 
-    def _register_event_payload_authorizer(self, name, handler_string, wrapped_handler,
+    def _register_request_authorizer(self, name, handler_string, wrapped_handler,
                              kwargs, **unused):
         actual_kwargs = kwargs.copy()
         ttl_seconds = actual_kwargs.pop('ttl_seconds', None)
@@ -1263,24 +1263,27 @@ class ChaliceEventPayloadAuthorizer(object):
             event['type'],
             event['methodArn'],
         )
-        for source_type, sources in self.config.identity_sources.items():
+        for source in vars(self.config.identity_sources):
+            value = getattr(self.config.identity_sources, source)
+            if not value:
+                continue
             present_sources = []
-            if source_type == 'querystrings':
-                for source in sources:
+            if source == 'query_strings':
+                for source in value:
                     present_sources.append({source: event['multiValueQueryStringParameters'][source]})
-                request.querystrings = present_sources
-            if source_type == 'headers':
-                for source in sources:
+                request.query_strings = present_sources
+            if source == 'headers':
+                for source in value:
                     if source in event.get('headers'):
                         present_sources.append({source: event['headers'][source]})
                 request.headers = present_sources
             if present_sources == 'stage_variables':
-                for source in sources:
+                for source in value:
                     if source in event.get('headers'):
                         present_sources.append({source: event['stage_variables'][source]})
                 request.headers = present_sources
             if present_sources == 'context':
-                for source in sources:
+                for source in value:
                     if source in event.get('context'):
                         present_sources.append({source: event['context'][source]})
                 request.headers = present_sources
@@ -1331,10 +1334,9 @@ class AuthEventPayloadRequest(object):
         self.auth_type = auth_type
         self.method_arn = method_arn
         self.headers = headers if headers else []
-        self.querystrings = querystrings if querystrings else []
+        self.query_strings = querystrings if querystrings else []
         self.stage_variables = stage_variables if stage_variables else []
         self.context = context if context else []
-
 
 class AuthResponse(object):
     ALL_HTTP_METHODS = ['DELETE', 'HEAD', 'OPTIONS',

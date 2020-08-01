@@ -344,7 +344,7 @@ class LocalGatewayAuthorizer(object):
                                                          auth_result)
         if isinstance(authorizer, ChaliceEventPayloadAuthorizer):
             arn = self._arn_builder.build_arn(method, raw_path)
-            auth_event = self._prepare_event_payload_authorizer_event(arn, lambda_event,
+            auth_event = self._prepare_request_authorizer_event(arn, lambda_event,
                                                         lambda_context)
             try:
                 auth_result = authorizer(auth_event, lambda_context)
@@ -451,7 +451,7 @@ class LocalGatewayAuthorizer(object):
         authorizer_event['methodArn'] = arn
         return authorizer_event
 
-    def _prepare_event_payload_authorizer_event(self, arn, lambda_event, lambda_context):
+    def _prepare_request_authorizer_event(self, arn, lambda_event, lambda_context):
         # type: (str, EventType, LambdaContext) -> EventType
         """Translate event for an authorizer input."""
         authorizer_event = lambda_event.copy()
