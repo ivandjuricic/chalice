@@ -1269,6 +1269,8 @@ class ChaliceAuthorizer(object):
 
 
 class ChaliceRequestPayloadAuthorizer(object):
+    _AUTH_TYPE = 'request'
+
     def __init__(self, name, func, scopes=None):
         self.name = name
         self.func = func
@@ -1299,6 +1301,20 @@ class ChaliceRequestPayloadAuthorizer(object):
         authorizer_with_scopes = copy.deepcopy(self)
         authorizer_with_scopes.scopes = scopes
         return authorizer_with_scopes
+
+    def to_swagger(self):
+        swagger = {
+            'in': 'header',
+            'type': 'apiKey',
+            'name': "test",
+            'x-amazon-apigateway-authtype': self._AUTH_TYPE,
+            'x-amazon-apigateway-authorizer': {
+                'type': 'request',
+                'identitySource': "method.request.header.Auth",
+                'authorizerResultTtlInSeconds': 0
+            }
+        }
+        return swagger
 
 
 class RequestAuthorizerIdentitySources:

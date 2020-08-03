@@ -408,7 +408,7 @@ class LocalGatewayAuthorizer(object):
         for source in vars(sources):
             if getattr(sources, source):
                 for key in getattr(sources, source):
-                    if key not in event[event_keys.get(source)]:
+                    if key.lower() not in event[event_keys.get(source)]:
                         raise NotAuthorizedError(
                             {'x-amzn-RequestId': lambda_context.aws_request_id,
                              'x-amzn-ErrorType': 'UnauthorizedException'},
@@ -480,7 +480,7 @@ class LocalGatewayAuthorizer(object):
         authorizer_event['resource'] = None
         authorizer_event['path'] = None
         authorizer_event['httpMethod'] = None
-        authorizer_event['headers'] = {}
+        authorizer_event['headers'] = lambda_event['headers']
         authorizer_event['queryStringParameters'] = lambda_event.get('multiValueQueryStringParameters', {})
         authorizer_event['pathParameters'] = lambda_event['pathParameters']
         authorizer_event['stageVariables'] = lambda_event['stageVariables']
