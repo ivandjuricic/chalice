@@ -186,7 +186,7 @@ class LambdaEventConverter(object):
                 },
                 'path': path.split('?')[0],
             },
-            'headers': {k.lower(): v for k, v in headers.items()},
+            'headers': dict(headers),
             'pathParameters': view_route.captured,
             'stageVariables': {},
         }
@@ -408,7 +408,7 @@ class LocalGatewayAuthorizer(object):
         for source in vars(sources):
             if getattr(sources, source):
                 for key in getattr(sources, source):
-                    if key.lower() not in event[event_keys.get(source)]:
+                    if key not in event[event_keys.get(source)]:
                         raise NotAuthorizedError(
                             {'x-amzn-RequestId': lambda_context.aws_request_id,
                              'x-amzn-ErrorType': 'UnauthorizedException'},

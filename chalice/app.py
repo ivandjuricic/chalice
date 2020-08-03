@@ -626,7 +626,7 @@ class DecoratorAPI(object):
             }
         )
 
-    def request_authorizer(self, ttl_seconds=None, execution_role=None, name=None, identity_sources=None):
+    def request_authorizer(self, identity_sources, ttl_seconds=None, execution_role=None, name=None):
         return self._create_registration_function(
             handler_type='request_authorizer',
             name=name,
@@ -923,6 +923,8 @@ class _HandlerRegistration(object):
         ttl_seconds = actual_kwargs.pop('ttl_seconds', None)
         execution_role = actual_kwargs.pop('execution_role', None)
         identity_sources = actual_kwargs.pop('identity_sources')
+        if not isinstance(identity_sources, RequestAuthorizerIdentitySources):
+            raise TypeError('TypeError: identity_sources must be an RequestAuthorizerIdentitySources instance')
         if actual_kwargs:
             raise TypeError(
                 'TypeError: authorizer() got unexpected keyword '
@@ -936,7 +938,6 @@ class _HandlerRegistration(object):
         )
         wrapped_handler.config = auth_config
         self.builtin_auth_handlers.append(auth_config)
-
 
     def _register_route(self, name, user_handler, kwargs, **unused):
         actual_kwargs = kwargs['kwargs']
@@ -1343,6 +1344,8 @@ class ChaliceRequestPayloadAuthorizer(object):
 
 class RequestAuthorizerIdentitySources:
     def __init__(self, headers=None, querystring=None, stage_variables=None, context=None):
+        if not any([headers, querystring, stage_variables, context]):
+            raise ValueError('Must provide at least one identity source')  # TODO BETTER MESSAGE
         self.headers = headers
         self.querystring = querystring
         self.stage_variables = stage_variables
@@ -1364,6 +1367,7 @@ class AuthEventPayloadRequest(object):
         self.query_string_parameters = query_string_parameters
         self.stage_variables = stage_variables
         self.request_context = reqest_context
+
 
 class AuthResponse(object):
     ALL_HTTP_METHODS = ['DELETE', 'HEAD', 'OPTIONS',
