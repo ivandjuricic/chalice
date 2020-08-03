@@ -1302,15 +1302,39 @@ class ChaliceRequestPayloadAuthorizer(object):
         authorizer_with_scopes.scopes = scopes
         return authorizer_with_scopes
 
+    def stringify_identity_sources(self):
+        prefixes = {
+            'headers': 'method.request.header',
+            'querystring': 'method.request.querystring',
+            'stage_variable': 'stageVariables',
+            'request_context': 'context'
+        }
+        result = ""
+        for source in vars(self.config.identity_sources):
+            prefix = prefixes.get(source)
+            if not getattr(self.config.identity_sources, source):
+                continue
+            for key in getattr(self.config.identity_sources, source):
+                src = ".".join([prefix, key])
+                result = src if result == "" else ", ".join([result, src])
+        return result
+
     def to_swagger(self):
+        """
+        identitySources (string of comma separated values):
+            method.request.header.Name
+            method.request.querystring.Name
+            stageVariables.Name
+            context.Name
+        """
         swagger = {
-            'in': 'header',
             'type': 'apiKey',
-            'name': "test",
+            'name': "Unused",  # unused or auth
+            'in': 'header',
             'x-amazon-apigateway-authtype': self._AUTH_TYPE,
             'x-amazon-apigateway-authorizer': {
                 'type': 'request',
-                'identitySource': "method.request.header.Auth",
+                'identitySource': self.stringify_identity_sources(),
                 'authorizerResultTtlInSeconds': 0
             }
         }
@@ -1318,9 +1342,9 @@ class ChaliceRequestPayloadAuthorizer(object):
 
 
 class RequestAuthorizerIdentitySources:
-    def __init__(self, headers=None, query_strings=None, stage_variables=None, context=None):
+    def __init__(self, headers=None, querystring=None, stage_variables=None, context=None):
         self.headers = headers
-        self.query_strings = query_strings
+        self.querystring = querystring
         self.stage_variables = stage_variables
         self.context = context
 

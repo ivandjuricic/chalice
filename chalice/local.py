@@ -400,7 +400,7 @@ class LocalGatewayAuthorizer(object):
     def _check_request_has_indentity_sources(self, authorizer, event, lambda_context):
         event_keys = {
             'headers': 'headers',
-            'query_strings': 'queryStringParameters',
+            'querystring': 'queryStringParameters',
             'stage_variables': 'stageVariables',
             'request_context': 'requestContext'
         }
