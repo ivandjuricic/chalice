@@ -1269,26 +1269,11 @@ class ChaliceAuthorizer(object):
         return authorizer_with_scopes
 
 
-class ChaliceRequestPayloadAuthorizer(object):
+class ChaliceRequestPayloadAuthorizer(ChaliceAuthorizer):
     _AUTH_TYPE = 'request'
 
-    def __init__(self, name, func, scopes=None):
-        self.name = name
-        self.func = func
-        self.scopes = scopes or []
-        # This is filled in during the @app.authorizer()
-        # processing.
-        self.config = None
-
-    def __call__(self, event, context):
-        auth_request = self._transform_event(event)
-        result = self.func(auth_request)
-        if isinstance(result, AuthResponse):
-            return result.to_dict(auth_request)
-        return result
-
     def _transform_event(self, event):
-        request = AuthEventPayloadRequest(
+        request = RequestAuthorizerRequest(
             event['type'],
             event['methodArn'],
             event.get('headers', {}),
@@ -1297,11 +1282,6 @@ class ChaliceRequestPayloadAuthorizer(object):
             event.get('requestContext', {}),
         )
         return request
-
-    def with_scopes(self, scopes):
-        authorizer_with_scopes = copy.deepcopy(self)
-        authorizer_with_scopes.scopes = scopes
-        return authorizer_with_scopes
 
     def stringify_identity_sources(self):
         prefixes = {
@@ -1359,7 +1339,7 @@ class AuthRequest(object):
         self.method_arn = method_arn
 
 
-class AuthEventPayloadRequest(object):
+class RequestAuthorizerRequest(object):
     def __init__(self, auth_type, method_arn, headers, query_string_parameters, stage_variables, reqest_context):
         self.auth_type = auth_type
         self.method_arn = method_arn
