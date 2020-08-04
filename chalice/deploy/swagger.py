@@ -78,7 +78,10 @@ class SwaggerGenerator(object):
 
     def _generate_security_from_auth_obj(self, api_config, authorizer):
         # type: (Dict[str, Any], Authorizer) -> None
-        if isinstance(authorizer, ChaliceAuthorizer):
+        if isinstance(authorizer, ChaliceRequestPayloadAuthorizer):
+            config = authorizer.to_swagger()
+            config['x-amazon-apigateway-authorizer']['authorizerUri'] = self._auth_uri(authorizer)
+        elif isinstance(authorizer, ChaliceAuthorizer):
             auth_config = authorizer.config
             config = {
                 'in': 'header',
