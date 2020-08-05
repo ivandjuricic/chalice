@@ -138,6 +138,12 @@ class DecoratorAPI(object):
                    execution_role: Optional[str]=None,
                    name: Optional[str]=None) -> Callable[..., Any]: ...
 
+    def request_authorizer(self,
+               identity_sources: RequestAuthorizerIdentitySources,
+               ttl_seconds: Optional[int]=None,
+               execution_role: Optional[str]=None,
+               name: Optional[str]=None) -> Callable[..., Any]: ...
+
     def on_s3_event(self,
                     bucket: str,
                     events: Optional[List[str]]=None,
